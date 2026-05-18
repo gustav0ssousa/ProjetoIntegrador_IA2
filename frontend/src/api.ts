@@ -2,8 +2,8 @@ import type { Leitura, LeituraListResponse } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
-export async function fetchLeituras(): Promise<Leitura[]> {
-  const response = await fetch(`${API_URL}/leituras?limit=80`);
+export async function fetchLeituras(limit = 300): Promise<Leitura[]> {
+  const response = await fetch(`${API_URL}/leituras?limit=${limit}`);
   if (!response.ok) {
     throw new Error("Nao foi possivel carregar as leituras da API.");
   }

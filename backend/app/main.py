@@ -8,6 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorCollection
 
+from app.analytics import ALERT_LIMITS, montar_analytics, montar_predictions
 from app.config import Settings, get_settings
 from app.database import (
     close_mongo_connection,
@@ -23,6 +24,11 @@ from app.models import (
     LeituraListResponse,
     LeituraResponse,
     SimulacaoResumo,
+)
+from app.sensor_compat import (
+    leitura_document_to_sensor_readings,
+    normalizar_mqtt_payload,
+    normalizar_sensor_payload,
 )
 
 
@@ -68,6 +74,24 @@ def filtro_leituras(
     return filtro
 
 
+async def inserir_leitura(
+    leitura: LeituraCreate,
+    collection: AsyncIOMotorCollection,
+) -> dict:
+    document = leitura.to_document()
+    result = await collection.insert_one(document)
+    document["_id"] = result.inserted_id
+    return document_to_response(document)
+
+
+async def buscar_leituras_recentes(
+    collection: AsyncIOMotorCollection,
+    limit: int,
+) -> list[dict]:
+    cursor = collection.find({}).sort("timestamp", -1).limit(limit)
+    return [document async for document in cursor]
+
+
 @app.get("/", include_in_schema=False)
 async def root() -> dict[str, str]:
     return {"message": "API de Monitoramento de Deslizamentos"}
@@ -89,10 +113,120 @@ async def criar_leitura(
     leitura: LeituraCreate,
     collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
 ) -> dict:
-    document = leitura.to_document()
-    result = await collection.insert_one(document)
-    document["_id"] = result.inserted_id
-    return document_to_response(document)
+    return await inserir_leitura(leitura, collection)
+
+
+@app.post(
+    "/api/sensors",
+    status_code=status.HTTP_201_CREATED,
+)
+async def criar_leitura_sensor_compat(
+    payload: dict,
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+) -> dict:
+    leitura = normalizar_sensor_payload(payload)
+    document = await inserir_leitura(leitura, collection)
+    return {
+        "sucesso": True,
+        "mensagem": "Leitura recebida e salva no MongoDB",
+        "id": document["id"],
+        "leitura": document,
+    }
+
+
+@app.get("/api/sensors")
+async def listar_sensores_compat(
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> dict:
+    documents = await buscar_leituras_recentes(collection, limit)
+    readings = [
+        reading
+        for document in documents
+        for reading in leitura_document_to_sensor_readings(document)
+    ]
+    return {"sucesso": True, "total": len(readings), "dados": readings}
+
+
+@app.post("/mqtt/webhook", status_code=status.HTTP_201_CREATED)
+async def receber_mqtt_webhook(
+    payload: dict,
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+) -> dict:
+    leitura = normalizar_mqtt_payload(payload)
+    document = await inserir_leitura(leitura, collection)
+    return {
+        "success": True,
+        "message": "Leitura MQTT processada com sucesso",
+        "reading": document,
+    }
+
+
+@app.get("/analytics")
+async def analytics(
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+    limit: int = Query(default=600, ge=1, le=2000),
+) -> dict:
+    documents = await buscar_leituras_recentes(collection, limit)
+    return montar_analytics(documents)
+
+
+@app.get("/alerts")
+async def listar_alertas(
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+    limit: int = Query(default=100, ge=1, le=1000),
+) -> dict:
+    documents = await buscar_leituras_recentes(collection, limit)
+    alerts = []
+    for document in documents:
+        if document.get("nivel_alerta") == "verde" and not document.get("evento_deslizamento"):
+            continue
+        response = document_to_response(dict(document))
+        alerts.append(
+            {
+                "id": response["id"],
+                "sensorId": response["id_simulacao"],
+                "sensorType": "landslide",
+                "severity": "critical" if response["nivel_alerta"] == "vermelho" else "warning",
+                "value": response["nivel_alerta"],
+                "threshold": response["nivel_alerta"],
+                "message": "Evento de deslizamento detectado"
+                if response["evento_deslizamento"]
+                else f"Nivel de alerta {response['nivel_alerta']}",
+                "timestamp": response["timestamp"],
+                "acknowledged": False,
+                "leitura": response,
+            }
+        )
+    return {"success": True, "total": len(alerts), "alerts": alerts}
+
+
+@app.get("/limits")
+async def obter_limites() -> dict:
+    return ALERT_LIMITS
+
+
+@app.get("/predictions")
+async def predictions(
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+    limit: int = Query(default=120, ge=1, le=1000),
+) -> dict:
+    documents = await buscar_leituras_recentes(collection, limit)
+    return montar_predictions(documents)
+
+
+@app.get("/debug/db")
+async def debug_db(
+    collection: Annotated[AsyncIOMotorCollection, Depends(collection_dependency)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict:
+    total = await collection.count_documents({})
+    return {
+        "sucesso": True,
+        "banco": settings.mongodb_database,
+        "colecao": settings.mongodb_collection,
+        "total_leituras": total,
+    }
 
 
 @app.get("/leituras", response_model=LeituraListResponse)
