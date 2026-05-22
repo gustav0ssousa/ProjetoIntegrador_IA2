@@ -48,15 +48,14 @@ http://192.168.0.10:8000/leituras
   "giroscopio_y": 0.0,
   "giroscopio_z": 0.2,
   "umidade_solo": 720,
-  "chuva": 480,
   "inclinacao": 0,
   "evento_deslizamento": false,
-  "observacoes_experimento": "Solo argiloso, chuva simulada leve."
+  "observacoes_experimento": "Solo argiloso, maquete em condicao estavel."
 }
 ```
 
 `nivel_alerta` e opcional. Quando ele nao for enviado, a API calcula uma
-classificacao inicial usando umidade, chuva, vibracao e inclinacao.
+classificacao inicial usando umidade, vibracao e inclinacao.
 
 ## Endpoints principais
 

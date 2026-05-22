@@ -32,59 +32,81 @@ Documentos complementares:
 - [Markdowns.md](Markdowns.md): integração do frontend.
 - [Integracao_API_sensores_pi.md](Integracao_API_sensores_pi.md): integração da API `sensores_pi`.
 - [Implementacao_Dispositivo_Higrometro.md](Implementacao_Dispositivo_Higrometro.md): implementação do dispositivo.
+- [Testes_Maquete_Acrilico.md](Testes_Maquete_Acrilico.md): roteiro de testes com morro em caixa de acrilico.
 
 ## Requisitos
 
-- Python 3.11 ou superior recomendado.
-- Node.js 20 ou superior recomendado.
 - Docker Desktop ou Docker Engine.
 - ESP32 com MicroPython gravado.
 - `mpremote` para copiar arquivos para a ESP32.
+- Python 3.11+ e Node.js 20+ são necessários somente para executar backend/frontend fora dos containers.
 
-## Configuração Do Banco
+## Execução Com Docker
 
-Suba o MongoDB pela raiz:
+Todos os serviços da aplicação web estão conteinerizados:
 
-```powershell
-docker compose up -d mongodb
-```
+| Serviço | Container | Porta |
+|---|---|---:|
+| MongoDB | `projeto-integrador-mongodb` | `27017` |
+| Backend FastAPI | `projeto-integrador-backend` | `8000` |
+| Frontend React/Nginx | `projeto-integrador-frontend` | `5173` |
 
-O MongoDB ficará disponível em:
-
-```text
-mongodb://localhost:27017
-```
-
-## Backend
-
-Crie e configure o ambiente:
+Suba tudo pela raiz do projeto:
 
 ```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+docker compose up --build -d
 ```
 
-Crie o arquivo `.env` a partir de `backend/.env.example`:
+Acompanhe os logs:
+
+```powershell
+docker compose logs -f
+```
+
+Abra:
 
 ```text
-MONGODB_URI=mongodb://localhost:27017
+Frontend: http://localhost:5173
+Backend:  http://localhost:8000
+Docs API: http://localhost:8000/docs
+MongoDB:  mongodb://localhost:27017
+```
+
+Verifique o estado dos containers:
+
+```powershell
+docker compose ps
+```
+
+Parar os serviços:
+
+```powershell
+docker compose down
+```
+
+Remover também o volume do MongoDB:
+
+```powershell
+docker compose down -v
+```
+
+O `docker-compose.yml` configura o backend para acessar o MongoDB pela rede interna Docker:
+
+```text
+MONGODB_URI=mongodb://mongodb:27017
 MONGODB_DATABASE=deslizamentos_iot
 MONGODB_COLLECTION=leituras
 ```
 
-Rode a API:
+O frontend é compilado com `VITE_API_URL=http://localhost:8000` por padrão, porque a chamada HTTP é feita pelo navegador na máquina host. Para acessar o dashboard a partir de outro computador da rede, gere o build informando o IP da máquina que roda o backend:
 
 ```powershell
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+VITE_API_URL=http://IP_DA_MAQUINA:8000 docker compose up --build -d frontend
 ```
 
-Documentação interativa:
+Depois de mudar `VITE_API_URL`, reconstrua o frontend.
 
-```text
-http://localhost:8000/docs
-```
+## Backend
 
 Endpoints principais:
 
@@ -101,9 +123,21 @@ Endpoints principais:
 - `GET /limits`
 - `GET /predictions`
 
+Execução local sem Docker, opcional:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Use `backend/.env.example` como referência se rodar fora do Compose.
+
 ## Frontend
 
-Instale dependências e rode:
+Execução local sem Docker, opcional:
 
 ```powershell
 cd frontend
@@ -159,9 +193,22 @@ CONFIG = {
     "api_key": "",
     "device_id": "esp32-sensores-01",
     "send_interval_ms": 3000,
-    "moisture_wet_threshold": 3800,
-    "vibration_active_high": True,
+    "moisture_dry_adc": 4095,
+    "moisture_wet_adc": 1500,
+    "moisture_wet_threshold": 3400,
+    "moisture_digital_active_low": True,
+    "vibration_active_high": False,
+    "vibration_sample_count": 25,
+    "vibration_event_samples": 0,
+    "vibration_sample_delay_ms": 4,
+    "vibration_edge_threshold": 4,
+    "vibration_continuous_windows": 2,
     "acceleration_alert_ms2": 12.0,
+    "buzzer_active_high": True,
+    "buzzer_pulse_moisture_min_threshold": 2400,
+    "buzzer_continuous_moisture_threshold": 3400,
+    "buzzer_normal_pulse_ms": 80,
+    "buzzer_normal_interval_ms": 5000,
 }
 ```
 
@@ -185,10 +232,10 @@ Pinagem usada pelo firmware:
 
 | Componente | GPIO |
 |---|---:|
-| Higrômetro AO | 34 |
-| Higrômetro DO | 27 |
+| HW-103A AO | 34 |
+| HW-103A DO | 27 |
 | Buzzer | 25 |
-| Vibração | 26 |
+| SW-520 | 26 |
 | MPU6050 SDA | 21 |
 | MPU6050 SCL | 22 |
 
@@ -196,10 +243,16 @@ O firmware envia uma leitura consolidada para `POST /leituras`, com:
 
 - aceleração em `g`;
 - giroscópio em `graus/s`;
-- umidade como ADC bruto `0-4095`;
-- `chuva = 0`, pois o dispositivo atual não possui sensor de chuva;
-- `inclinacao = 1` quando houver vibração;
+- umidade normalizada `0-4095`, onde maior valor significa mais umidade para as predições;
+- ADC bruto do HW-103A, estado digital, amostras, bordas e sequência do SW-520 em `observacoes_experimento`;
+- `inclinacao = 1` quando o SW-520 detectar variação rápida e contínua, configurada por `vibration_edge_threshold` e `vibration_continuous_windows`;
 - observações técnicas do ciclo em `observacoes_experimento`.
+
+No boot, o firmware imprime um diagnóstico do SW-520 com GPIO, valor bruto inicial, polaridade e status da interrupção. Durante a execução, observe `bordas`, `irq` e `polling`: se esses valores continuarem `0` mesmo com vibração forte, revise VCC, GND, DO no GPIO 26, polaridade `vibration_active_high` e se o firmware novo foi enviado para a ESP32.
+
+O buzzer usa tres comportamentos pela umidade normalizada: abaixo de `2400` fica sem som; de `2400` ate `3399` usa pulso curto e espacado, configurado por `buzzer_normal_pulse_ms` e `buzzer_normal_interval_ms`; a partir de `buzzer_continuous_moisture_threshold` usa sinal continuo. Vibracao/inclinacao ou aceleracao acima do limite tambem acionam sinal continuo.
+
+Para calibrar a maquete, anote o AO do HW-103A com o solo seco e depois com o solo saturado. Use esses valores em `moisture_dry_adc` e `moisture_wet_adc`. Em muitos módulos resistivos o AO fica menor quando há mais água, por isso o firmware converte a leitura para uma escala preditiva crescente.
 
 ## Testes
 
@@ -227,32 +280,17 @@ python -m compileall src
 
 ## Fluxo De Execução Local
 
-1. Subir MongoDB:
+1. Subir MongoDB, backend e frontend:
 
 ```powershell
-docker compose up -d mongodb
+docker compose up --build -d
 ```
 
-2. Rodar backend:
+2. Configurar `src/config.py` com o IP da máquina que expõe o backend em `8000`.
 
-```powershell
-cd backend
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+3. Enviar firmware para a ESP32.
 
-3. Rodar frontend:
-
-```powershell
-cd frontend
-npm run dev
-```
-
-4. Configurar `src/config.py` com o IP do backend.
-
-5. Enviar firmware para a ESP32.
-
-6. Validar dados:
+4. Validar dados:
 
 ```text
 http://localhost:8000/docs
@@ -266,4 +304,3 @@ http://localhost:5173
 - Calibrar `moisture_wet_threshold` com solo seco e molhado reais.
 - Confirmar a polaridade do sensor de vibração antes de usar em demonstração.
 - Manter `higrometro/` e `sensores_pi/` como referências, não como apps principais da raiz.
-

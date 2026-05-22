@@ -5,7 +5,6 @@ const now = new Date("2026-05-11T19:46:00-03:00").getTime();
 export const sampleReadings: Leitura[] = Array.from({ length: 28 }, (_, index) => {
   const step = 27 - index;
   const umidade = 1620 + Math.round(Math.sin(step / 3) * 180 + step * 34);
-  const chuva = step > 16 ? 1180 + step * 18 : 420 + step * 12;
   const vibracao = step > 21 ? 0.56 : 0.12 + Math.sin(step / 2) * 0.04;
   const inclinacao = step > 24 ? 1 : 0;
   const alerta = inclinacao ? "vermelho" : step > 21 ? "laranja" : step > 14 ? "amarelo" : "verde";
@@ -22,7 +21,6 @@ export const sampleReadings: Leitura[] = Array.from({ length: 28 }, (_, index) =
       giroscopio_y: Number((step * 0.7).toFixed(1)),
       giroscopio_z: Number((step * 1.1).toFixed(1)),
       umidade_solo: Math.min(4095, umidade),
-      chuva: Math.min(4095, chuva),
       inclinacao,
     },
     nivel_alerta: alerta,

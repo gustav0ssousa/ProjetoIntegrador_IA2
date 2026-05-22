@@ -14,7 +14,6 @@ class Sensores(BaseModel):
     giroscopio_y: float
     giroscopio_z: float
     umidade_solo: int = Field(ge=0, le=4095)
-    chuva: int = Field(ge=0, le=4095)
     inclinacao: int = Field(ge=0, le=1)
 
 
@@ -42,7 +41,6 @@ class LeituraCreate(Sensores):
             return self.nivel_alerta
         return calcular_nivel_alerta(
             umidade_solo=self.umidade_solo,
-            chuva=self.chuva,
             inclinacao=self.inclinacao,
             aceleracao_x=self.aceleracao_x,
             aceleracao_y=self.aceleracao_y,

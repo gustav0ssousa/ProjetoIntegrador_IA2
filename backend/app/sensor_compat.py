@@ -72,14 +72,15 @@ def normalizar_sensor_payload(payload: dict[str, Any]) -> LeituraCreate:
         "giroscopio_y": 0.0,
         "giroscopio_z": 0.0,
         "umidade_solo": 0,
-        "chuva": 0,
         "inclinacao": 0,
         "evento_deslizamento": False,
         "observacoes_experimento": f"Payload compat sensores_pi: {sensor_type or 'unknown'}",
     }
 
     if sensor_type == "humidity":
-        data["umidade_solo"] = _int_adc(metadata.get("ao", value))
+        data["umidade_solo"] = _int_adc(
+            metadata.get("moistureNormalized", metadata.get("umidade_norm", metadata.get("ao", value)))
+        )
         data["observacoes_experimento"] = "Payload compat sensores_pi: humidity"
     elif sensor_type == "vibration":
         detected = _boolish(metadata.get("vibrando")) or _boolish(payload.get("vibrando")) or _boolish(payload.get("detected"))

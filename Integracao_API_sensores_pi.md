@@ -54,7 +54,7 @@ Ponto de adaptacao:
 
 - A raiz ja calcula `nivel_alerta` em `backend/app/risk.py`.
 - A rota pode virar `GET /analytics` ou `GET /leituras/analytics`, usando os documentos atuais da colecao `leituras`.
-- O calculo deve usar `sensores.umidade_solo`, `sensores.chuva`, `sensores.inclinacao`, aceleracao e giroscopio, em vez de `sensorType`.
+- O calculo deve usar `sensores.umidade_solo`, `sensores.inclinacao`, aceleracao e giroscopio, em vez de `sensorType`.
 
 ### `history`
 

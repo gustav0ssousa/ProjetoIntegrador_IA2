@@ -81,6 +81,21 @@ async def inserir_leitura(
     document = leitura.to_document()
     result = await collection.insert_one(document)
     document["_id"] = result.inserted_id
+    sensores = document.get("sensores", {})
+    print(
+        (
+            "leitura_recebida "
+            "id_simulacao={} umidade_solo={} inclinacao={} "
+            "nivel_alerta={} evento_deslizamento={}"
+        ).format(
+            document.get("id_simulacao"),
+            sensores.get("umidade_solo"),
+            sensores.get("inclinacao"),
+            document.get("nivel_alerta"),
+            document.get("evento_deslizamento"),
+        ),
+        flush=True,
+    )
     return document_to_response(document)
 
 
@@ -268,7 +283,6 @@ async def exportar_leituras_csv(
         "giroscopio_y",
         "giroscopio_z",
         "umidade_solo",
-        "chuva",
         "inclinacao",
         "nivel_alerta",
         "evento_deslizamento",
@@ -291,7 +305,6 @@ async def exportar_leituras_csv(
                 "giroscopio_y": sensores.get("giroscopio_y"),
                 "giroscopio_z": sensores.get("giroscopio_z"),
                 "umidade_solo": sensores.get("umidade_solo"),
-                "chuva": sensores.get("chuva"),
                 "inclinacao": sensores.get("inclinacao"),
                 "nivel_alerta": document.get("nivel_alerta"),
                 "evento_deslizamento": document.get("evento_deslizamento"),

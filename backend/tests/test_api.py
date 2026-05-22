@@ -72,7 +72,6 @@ def test_post_leituras_cria_documento_com_sensores_aninhados():
             "giroscopio_y": 0.0,
             "giroscopio_z": 0.2,
             "umidade_solo": 720,
-            "chuva": 480,
             "inclinacao": 0,
             "evento_deslizamento": False,
         },
@@ -85,7 +84,16 @@ def test_post_leituras_cria_documento_com_sensores_aninhados():
     assert body["id_simulacao"] == "SIM_TESTE"
     assert body["nivel_alerta"] == "verde"
     assert body["sensores"]["umidade_solo"] == 720
-    assert body["sensores"]["chuva"] == 480
+    assert set(body["sensores"]) == {
+        "aceleracao_x",
+        "aceleracao_y",
+        "aceleracao_z",
+        "giroscopio_x",
+        "giroscopio_y",
+        "giroscopio_z",
+        "umidade_solo",
+        "inclinacao",
+    }
 
 
 def test_post_api_sensors_normaliza_payload_humidity():
@@ -116,6 +124,32 @@ def test_post_api_sensors_normaliza_payload_humidity():
     assert body["sucesso"] is True
     assert body["leitura"]["id_simulacao"] == "esp32-sensores-01"
     assert body["leitura"]["sensores"]["umidade_solo"] == 2480
+
+
+def test_post_api_sensors_prioriza_umidade_normalizada():
+    collection = FakeCollection()
+    app.dependency_overrides[collection_dependency] = lambda: collection
+    client = TestClient(app)
+
+    response = client.post(
+        "/api/sensors",
+        json={
+            "sensorId": "esp32-hw103a-01",
+            "sensorType": "humidity",
+            "value": 1800,
+            "unit": "raw",
+            "metadata": {
+                "deviceId": "esp32-sensores-01",
+                "ao": 1800,
+                "umidade_norm": 3620,
+            },
+        },
+    )
+
+    app.dependency_overrides.clear()
+
+    assert response.status_code == 201
+    assert response.json()["leitura"]["sensores"]["umidade_solo"] == 3620
 
 
 def test_post_api_sensors_normaliza_payload_accelerometer_ms2_para_g():
@@ -188,7 +222,6 @@ def test_get_analytics_e_alerts_derivam_leituras_reais():
                 "giroscopio_y": 0.0,
                 "giroscopio_z": 0.0,
                 "umidade_solo": 2900,
-                "chuva": 900,
                 "inclinacao": 0,
             },
             "nivel_alerta": "laranja",

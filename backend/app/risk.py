@@ -10,7 +10,6 @@ class NivelAlerta(StrEnum):
 
 def calcular_nivel_alerta(
     umidade_solo: int,
-    chuva: int,
     inclinacao: int,
     aceleracao_x: float,
     aceleracao_y: float,
@@ -28,7 +27,6 @@ def calcular_nivel_alerta(
     if evento_deslizamento or inclinacao == 1:
         return NivelAlerta.VERMELHO
 
-    chuva_presente = chuva >= 700
     solo_umido = umidade_solo >= 1800
     solo_saturado = umidade_solo >= 2800
     vibracao = (
@@ -40,9 +38,9 @@ def calcular_nivel_alerta(
         or abs(giroscopio_z) >= 35
     )
 
-    sinais_de_risco = sum([chuva_presente, solo_umido, vibracao])
+    sinais_de_risco = sum([solo_umido, vibracao])
 
-    if solo_saturado and chuva_presente and vibracao:
+    if solo_saturado and vibracao:
         return NivelAlerta.VERMELHO
     if sinais_de_risco >= 2:
         return NivelAlerta.LARANJA

@@ -63,7 +63,7 @@ Trazer conteudo e configuracoes de frontend de `sensores_pi/` para `frontend/`, 
    - evitar migrar rotas Next.js, server components ou hooks dependentes de `/api/...` do Next.
 3. Adaptar tipos e consumo de dados:
    - manter o tipo `Leitura` da raiz;
-   - criar funcoes de derivacao para exibir umidade, chuva, vibracao, inclinacao e risco;
+   - criar funcoes de derivacao para exibir umidade, vibracao, inclinacao e risco;
    - manter `frontend/src/api.ts` apontando para a API FastAPI.
 4. Atualizar estilos:
    - trazer a identidade visual util de `sensores_pi` para `frontend/src/styles.css`;

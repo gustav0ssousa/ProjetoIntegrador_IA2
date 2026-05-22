@@ -10,6 +10,17 @@ from app.config import Settings, get_settings
 
 client: AsyncIOMotorClient | None = None
 
+SENSOR_RESPONSE_FIELDS = {
+    "aceleracao_x",
+    "aceleracao_y",
+    "aceleracao_z",
+    "giroscopio_x",
+    "giroscopio_y",
+    "giroscopio_z",
+    "umidade_solo",
+    "inclinacao",
+}
+
 
 async def connect_to_mongo(settings: Settings) -> None:
     global client
@@ -44,6 +55,13 @@ async def collection_dependency(
 
 def document_to_response(document: dict[str, Any]) -> dict[str, Any]:
     document["id"] = str(document.pop("_id"))
+    sensores = document.get("sensores")
+    if isinstance(sensores, dict):
+        document["sensores"] = {
+            key: value
+            for key, value in sensores.items()
+            if key in SENSOR_RESPONSE_FIELDS
+        }
     return document
 
 

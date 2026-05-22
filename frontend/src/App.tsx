@@ -4,7 +4,6 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
-  CloudRain,
   Database,
   Download,
   Droplets,
@@ -46,7 +45,6 @@ type ChartRow = {
   time: string;
   date: string;
   umidade: number;
-  chuva: number;
   vibracao: number;
   inclinacao: number;
   risco: number;
@@ -138,9 +136,8 @@ function riskScore(reading?: Leitura) {
   if (!reading) return 0;
   const base = alertRank[reading.nivel_alerta] * 18;
   const moisture = toPercent(reading.sensores.umidade_solo) > 68 ? 18 : 0;
-  const rain = toPercent(reading.sensores.chuva) > 62 ? 16 : 0;
   const slope = reading.sensores.inclinacao ? 18 : 0;
-  return clamp(base + moisture + rain + slope);
+  return clamp(base + moisture + slope);
 }
 
 function getHighestAlert(items: Leitura[]): NivelAlerta {
@@ -433,7 +430,6 @@ export function App() {
   const recent = ordered.slice(-24);
   const highestAlert = getHighestAlert(recent);
   const moisture = latest ? toPercent(latest.sensores.umidade_solo) : 0;
-  const rain = latest ? toPercent(latest.sensores.chuva) : 0;
   const vibration = vibrationIndex(latest);
   const slope = slopeDegrees(latest);
   const events = readings.filter((item) => item.evento_deslizamento || item.nivel_alerta !== "verde");
@@ -452,7 +448,6 @@ export function App() {
     time: formatTime(item.timestamp).slice(0, 5),
     date: formatDate(item.timestamp),
     umidade: toPercent(item.sensores.umidade_solo),
-    chuva: toPercent(item.sensores.chuva),
     vibracao: vibrationIndex(item),
     inclinacao: slopeDegrees(item),
     risco: riskScore(item),
@@ -467,15 +462,6 @@ export function App() {
       chartRows.map((row) => ({ time: row.time, value: row.umidade })),
       "#4CAF50",
       70,
-    ),
-    makePrediction(
-      "chuva",
-      "Chuva",
-      "%",
-      chartRows.map((row) => row.chuva),
-      chartRows.map((row) => ({ time: row.time, value: row.chuva })),
-      "#66BB6A",
-      65,
     ),
     makePrediction(
       "vibracao",
@@ -690,7 +676,6 @@ export function App() {
                     <YAxis stroke="#8d9ab1" tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={{ background: "#111720", border: "1px solid #334155", borderRadius: 8 }} />
                     <Line type="monotone" dataKey="umidade" stroke="#18d0a8" strokeWidth={3} dot={false} />
-                    <Line type="monotone" dataKey="chuva" stroke="#52d4ff" strokeWidth={3} dot={false} />
                     <Line type="monotone" dataKey="vibracao" stroke="#38a5ff" strokeWidth={3} dot={false} />
                     <Line type="monotone" dataKey="inclinacao" stroke="#b786ff" strokeWidth={3} dot={false} />
                   </LineChart>
@@ -737,7 +722,6 @@ export function App() {
                     <th>Horario</th>
                     <th>Simulacao</th>
                     <th>Umidade</th>
-                    <th>Chuva</th>
                     <th>Vibracao</th>
                     <th>Inclinacao</th>
                     <th>Nivel</th>
@@ -749,7 +733,6 @@ export function App() {
                       <td>{formatTime(item.timestamp)}</td>
                       <td>{item.id_simulacao}</td>
                       <td>{toPercent(item.sensores.umidade_solo).toFixed(1)}%</td>
-                      <td>{toPercent(item.sensores.chuva).toFixed(1)}%</td>
                       <td>{vibrationIndex(item).toFixed(1)}</td>
                       <td>{slopeDegrees(item).toFixed(1)} graus</td>
                       <td>
@@ -831,8 +814,8 @@ export function App() {
                   <div>
                     <strong>{formatDate(item.timestamp)} as {formatTime(item.timestamp)}</strong>
                     <p>
-                      {item.id_simulacao}: umidade {toPercent(item.sensores.umidade_solo).toFixed(1)}%, chuva{" "}
-                      {toPercent(item.sensores.chuva).toFixed(1)}%, vibracao {vibrationIndex(item).toFixed(1)}.
+                      {item.id_simulacao}: umidade {toPercent(item.sensores.umidade_solo).toFixed(1)}%, vibracao{" "}
+                      {vibrationIndex(item).toFixed(1)}.
                     </p>
                   </div>
                   <span className={`alert-pill ${item.nivel_alerta}`}>{alertLabels[item.nivel_alerta]}</span>

@@ -260,7 +260,6 @@ Payload consolidado:
   "giroscopio_y": 0.2,
   "giroscopio_z": 0.3,
   "umidade_solo": 2480,
-  "chuva": 0,
   "inclinacao": 0,
   "evento_deslizamento": false,
   "observacoes_experimento": "higrometro_ao=2480; higrometro_do=0; wet=True; vibracao_raw=0; mpu_temp=28.4; magnitude_ms2=9.81"
@@ -270,7 +269,6 @@ Payload consolidado:
 ### Regras aplicadas
 
 - `umidade_solo` recebe o valor analogico do higrometro (`AO`).
-- `chuva` fica `0`, porque o projeto `higrometro` nao possui sensor de chuva.
 - `inclinacao` recebe `1` quando o sensor de vibracao acusa evento.
 - `evento_deslizamento` recebe `true` somente quando houver vibracao ou magnitude acima do limite configurado.
 - Solo molhado nao marca `evento_deslizamento` diretamente; ele influencia o risco via `umidade_solo`.

@@ -8,7 +8,6 @@ export type Sensores = {
   giroscopio_y: number;
   giroscopio_z: number;
   umidade_solo: number;
-  chuva: number;
   inclinacao: number;
 };
 

@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Any
 
+from app.database import document_to_response
 from app.risk import NivelAlerta
 
 
@@ -73,7 +74,6 @@ def montar_analytics(documents: list[dict[str, Any]]) -> dict[str, Any]:
                 "pontuacao": score,
                 "risco": risk["nivel"],
                 "umidadeAnalogica": sensores.get("umidade_solo"),
-                "chuva": sensores.get("chuva"),
                 "vibracao": sensores.get("inclinacao"),
                 "inclinacao": sensores.get("inclinacao"),
                 "sensores": sensores,
@@ -83,9 +83,7 @@ def montar_analytics(documents: list[dict[str, Any]]) -> dict[str, Any]:
     latest = documents[0] if documents else None
     latest_response = None
     if latest:
-        latest_response = dict(latest)
-        if "_id" in latest_response:
-            latest_response["id"] = str(latest_response.pop("_id"))
+        latest_response = document_to_response(dict(latest))
         latest_response["timestamp"] = _to_iso(latest_response.get("timestamp"))
         latest_response["created_at"] = _to_iso(latest_response.get("created_at"))
     latest_score = _risk_score(latest) if latest else 0
