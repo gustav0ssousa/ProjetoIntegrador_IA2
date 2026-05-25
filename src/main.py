@@ -28,13 +28,15 @@ DEFAULT_CONFIG = {
     "moisture_wet_adc": 1500,
     "moisture_wet_threshold": 2600,
     "moisture_digital_active_low": True,
+    "moisture_use_digital_wet": False,
     "vibration_active_high": False,
     "vibration_sample_count": 25,
     "vibration_event_samples": 0,
     "vibration_sample_delay_ms": 4,
     "vibration_edge_threshold": 4,
     "vibration_continuous_windows": 2,
-    "acceleration_alert_ms2": 12.0,
+    "acceleration_attention_threshold_g": 0.4,
+    "acceleration_alert_threshold_g": 0.7,
     "buzzer_active_high": True,
     "buzzer_pulse_moisture_min_threshold": 2400,
     "buzzer_continuous_moisture_threshold": 3400,
@@ -240,6 +242,13 @@ def update_buzzer(pin, alert_active, pulse_enabled, last_normal_pulse):
     return last_normal_pulse, "NORMAL SILENCIOSO"
 
 
+def acceleration_motion_g(mpu_data):
+    ax = mpu_data["aceleracao_x"]
+    ay = mpu_data["aceleracao_y"]
+    az = mpu_data["aceleracao_z"] - 1.0
+    return round(math.sqrt(ax * ax + ay * ay + az * az), 3)
+
+
 class MPU6050:
     def __init__(self, i2c):
         self.i2c = i2c
@@ -319,9 +328,10 @@ def build_payload(
     vibration_edges,
     vibration_streak,
     vibrating,
+    acceleration_motion,
     mpu_data,
 ):
-    acceleration_alarm = mpu_data["magnitude"] > cfg("acceleration_alert_ms2")
+    acceleration_alarm = acceleration_motion > cfg("acceleration_alert_threshold_g")
     event = bool(vibrating or acceleration_alarm)
 
     return {
@@ -334,12 +344,20 @@ def build_payload(
         "giroscopio_z": mpu_data["giroscopio_z"],
         "umidade_solo": int(moisture_scaled),
         "inclinacao": 1 if vibrating else 0,
+        "hw103a_ao": int(moisture_ao),
+        "hw103a_do": int(moisture_do),
+        "hw103a_do_wet": bool(moisture_digital_wet),
+        "sw520_raw": int(vibration_raw),
+        "sw520_hits": int(vibration_hits),
+        "sw520_edges": int(vibration_edges),
+        "sw520_streak": int(vibration_streak),
+        "mpu_motion_g": float(acceleration_motion),
         "evento_deslizamento": event,
         "observacoes_experimento": (
             "sensores=MPU6050,SW-520,HW-103A,buzzer; hw103a_ao={}; "
             "umidade_norm={}; hw103a_do={}; hw103a_do_wet={}; wet={}; "
             "sw520_raw={}; sw520_hits={}; sw520_edges={}; sw520_streak={}; "
-            "mpu_temp={}; magnitude_ms2={}"
+            "mpu_motion_g={}; mpu_temp={}; magnitude_ms2={}"
         ).format(
             moisture_ao,
             moisture_scaled,
@@ -350,6 +368,7 @@ def build_payload(
             vibration_hits,
             vibration_edges,
             vibration_streak,
+            acceleration_motion,
             mpu_data["temperatura"],
             mpu_data["magnitude"],
         ),
@@ -421,7 +440,9 @@ def main():
             moisture_digital,
             not bool(cfg("moisture_digital_active_low")),
         )
-        wet = moisture_scaled >= cfg("moisture_wet_threshold") or moisture_digital_wet
+        wet_by_analog = moisture_scaled >= cfg("moisture_wet_threshold")
+        wet_by_digital = bool(cfg("moisture_use_digital_wet")) and moisture_digital_wet
+        wet = wet_by_analog or wet_by_digital
 
         (
             vibration_raw,
@@ -444,13 +465,17 @@ def main():
             mpu.connected = False
             mpu_data = mpu.read()
 
+        acceleration_motion = acceleration_motion_g(mpu_data)
+        acceleration_attention = acceleration_motion > cfg("acceleration_attention_threshold_g")
+        acceleration_alert = acceleration_motion > cfg("acceleration_alert_threshold_g")
         moisture_buzzer_alert = moisture_scaled >= cfg("buzzer_continuous_moisture_threshold")
         moisture_buzzer_pulse = moisture_scaled >= cfg("buzzer_pulse_moisture_min_threshold")
-        buzzer_alert = moisture_buzzer_alert or vibrating or mpu_data["magnitude"] > cfg("acceleration_alert_ms2")
+        buzzer_alert = moisture_buzzer_alert or vibrating or acceleration_alert
+        buzzer_pulse = moisture_buzzer_pulse or acceleration_attention
         last_normal_buzzer_pulse, buzzer_status = update_buzzer(
             buzzer,
             buzzer_alert,
-            moisture_buzzer_pulse,
+            buzzer_pulse,
             last_normal_buzzer_pulse,
         )
 
@@ -458,8 +483,13 @@ def main():
         print("HW-103A AO bruto:", moisture_ao)
         print("Umidade normalizada:", moisture_scaled)
         print("umidade_solo enviada:", moisture_scaled)
-        print("HW-103A DO:", moisture_digital, "MOLHADO" if moisture_digital_wet else "SECO")
-        print("Solo molhado:", "SIM" if wet else "NAO")
+        print(
+            "HW-103A DO:",
+            moisture_digital,
+            "ATIVO" if moisture_digital_wet else "INATIVO",
+            "(diagnostico)",
+        )
+        print("Solo molhado:", "SIM" if wet else "NAO", "origem:", "AO" if wet_by_analog else "DO" if wet_by_digital else "nenhuma")
         print("Limiar buzzer pulso:", cfg("buzzer_pulse_moisture_min_threshold"))
         print("Limiar buzzer continuo:", cfg("buzzer_continuous_moisture_threshold"))
         print(
@@ -477,6 +507,12 @@ def main():
             vibration_streak,
         )
         print("Buzzer:", buzzer_status)
+        print(
+            "MPU movimento g:",
+            acceleration_motion,
+            "nivel:",
+            "ALERTA" if acceleration_alert else "ATENCAO" if acceleration_attention else "NORMAL",
+        )
         print("Aceleracao g: X={:.3f} Y={:.3f} Z={:.3f}".format(
             mpu_data["aceleracao_x"],
             mpu_data["aceleracao_y"],
@@ -504,6 +540,7 @@ def main():
                     vibration_edges,
                     vibration_streak,
                     vibrating,
+                    acceleration_motion,
                     mpu_data,
                 )
                 send_payload(payload)

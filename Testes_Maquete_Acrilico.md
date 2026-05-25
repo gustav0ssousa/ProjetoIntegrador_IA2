@@ -102,11 +102,14 @@ O firmware usa uma escala normalizada de `0` a `4095`, onde valores maiores indi
 "moisture_dry_adc": 4095,
 "moisture_wet_adc": 1500,
 "moisture_wet_threshold": 3400,
+"moisture_use_digital_wet": False,
 "buzzer_pulse_moisture_min_threshold": 2400,
 "buzzer_continuous_moisture_threshold": 3400,
 ```
 
 Use seus valores reais no lugar de `4095` e `1500`. O `moisture_wet_threshold` define a partir de qual umidade normalizada o sistema considera solo molhado. O buzzer fica sem som abaixo de `buzzer_pulse_moisture_min_threshold`, pulsa a partir desse valor e passa para sinal continuo em `buzzer_continuous_moisture_threshold`.
+
+Mantenha `moisture_use_digital_wet` como `False` durante a calibração. O `DO` do HW-103A deve ser observado como diagnóstico, porque o trimpot do módulo pode marcar ativo mesmo com a sonda seca.
 
 ## Sequencia recomendada de testes
 
@@ -163,6 +166,14 @@ Objetivo: validar `SW-520`, `MPU6050` e buzzer.
 Resultado esperado: `inclinacao = 1` ou `evento_deslizamento = true` quando houver vibração rápida e contínua.
 
 Se `bordas`, `irq` e `polling` permanecerem em `0` durante a vibração, confira se o pino `DO` do SW-520 esta no GPIO 26, se o sensor esta alimentado e se `vibration_active_high` combina com o modulo usado.
+
+Para o MPU6050, observe `MPU movimento g` no monitor serial:
+
+| Faixa | Interpretacao | Buzzer |
+|---:|---|---|
+| `0.000` a `0.400` | normal | sem buzzer pelo acelerometro |
+| `0.401` a `0.700` | atencao | pulso |
+| acima de `0.700` | alerta | continuo |
 
 ### Teste 5 - Deslizamento simulado
 

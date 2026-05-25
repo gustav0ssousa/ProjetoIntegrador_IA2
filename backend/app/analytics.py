@@ -2,13 +2,38 @@ from datetime import datetime
 from typing import Any
 
 from app.database import document_to_response
-from app.risk import NivelAlerta
+from app.risk import (
+    ACELERACAO_ALERTA_G,
+    ACELERACAO_ATENCAO_G,
+    UMIDADE_ALERTA_CONTINUO,
+    UMIDADE_PULSO_MIN,
+    NivelAlerta,
+    calcular_movimento_g,
+)
 
 
 ALERT_LIMITS = {
-    "humidity": {"min": 0, "max": 4095, "warningMin": 1800, "warningMax": 2800},
-    "accelerometer": {"min": -4, "max": 4, "warningMin": -0.35, "warningMax": 0.35},
-    "vibration": {"min": 0, "max": 1, "warningMin": 0, "warningMax": 1},
+    "humidity": {
+        "min": 0,
+        "max": 4095,
+        "warningMin": UMIDADE_PULSO_MIN,
+        "warningMax": UMIDADE_ALERTA_CONTINUO,
+        "unit": "raw_normalizado",
+    },
+    "accelerometer": {
+        "min": 0,
+        "max": 2,
+        "warningMin": ACELERACAO_ATENCAO_G,
+        "warningMax": ACELERACAO_ALERTA_G,
+        "unit": "g_movimento",
+    },
+    "vibration": {
+        "min": 0,
+        "max": 1,
+        "warningMin": 1,
+        "warningMax": 1,
+        "unit": "sw520_continuo",
+    },
 }
 
 
@@ -76,6 +101,9 @@ def montar_analytics(documents: list[dict[str, Any]]) -> dict[str, Any]:
                 "umidadeAnalogica": sensores.get("umidade_solo"),
                 "vibracao": sensores.get("inclinacao"),
                 "inclinacao": sensores.get("inclinacao"),
+                "mpuMotionG": _series_value(document, "accelerometer"),
+                "sw520Edges": sensores.get("sw520_edges"),
+                "sw520Streak": sensores.get("sw520_streak"),
                 "sensores": sensores,
             }
         )
@@ -113,10 +141,12 @@ def _series_value(document: dict[str, Any], metric: str) -> float:
     if metric == "vibration":
         return float(sensores.get("inclinacao", 0))
     if metric == "accelerometer":
+        if sensores.get("mpu_motion_g") is not None:
+            return round(float(sensores.get("mpu_motion_g", 0)), 3)
         x = float(sensores.get("aceleracao_x", 0))
         y = float(sensores.get("aceleracao_y", 0))
         z = float(sensores.get("aceleracao_z", 1))
-        return round((x * x + y * y + z * z) ** 0.5, 2)
+        return round(calcular_movimento_g(x, y, z), 3)
     return 0.0
 
 
@@ -153,17 +183,17 @@ def _classify_prediction(metric: str, prediction: float | None) -> tuple[str, st
     if prediction is None:
         return "low", "Dados insuficientes para predicao confiavel."
     if metric == "humidity":
-        if prediction >= 2800:
+        if prediction >= UMIDADE_ALERTA_CONTINUO:
             return "high", "Tendencia de solo saturado."
-        if prediction >= 1800:
+        if prediction >= UMIDADE_PULSO_MIN:
             return "medium", "Tendencia de umidade relevante no solo."
     if metric == "vibration":
         if prediction >= 1:
             return "high", "Tendencia elevada de vibracao/inclinacao."
     if metric == "accelerometer":
-        if prediction >= 1.35:
+        if prediction >= ACELERACAO_ALERTA_G:
             return "high", "Tendencia de movimentacao elevada pelo acelerometro."
-        if prediction >= 1.1:
+        if prediction >= ACELERACAO_ATENCAO_G:
             return "medium", "Tendencia de movimentacao moderada."
     return "low", "Tendencia dentro da faixa esperada."
 

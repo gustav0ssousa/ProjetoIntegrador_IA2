@@ -15,6 +15,14 @@ class Sensores(BaseModel):
     giroscopio_z: float
     umidade_solo: int = Field(ge=0, le=4095)
     inclinacao: int = Field(ge=0, le=1)
+    hw103a_ao: int | None = Field(default=None, ge=0, le=4095)
+    hw103a_do: int | None = Field(default=None, ge=0, le=1)
+    hw103a_do_wet: bool | None = None
+    sw520_raw: int | None = Field(default=None, ge=0, le=1)
+    sw520_hits: int | None = Field(default=None, ge=0)
+    sw520_edges: int | None = Field(default=None, ge=0)
+    sw520_streak: int | None = Field(default=None, ge=0)
+    mpu_motion_g: float | None = Field(default=None, ge=0)
 
 
 class LeituraCreate(Sensores):

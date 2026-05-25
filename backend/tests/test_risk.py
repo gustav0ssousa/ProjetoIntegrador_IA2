@@ -17,12 +17,28 @@ def test_calcula_verde_sem_sinais_de_risco():
     )
 
 
-def test_calcula_laranja_com_solo_umido_e_vibracao():
+def test_calcula_amarelo_com_movimento_em_atencao():
     assert (
         calcular_nivel_alerta(
-            umidade_solo=1900,
+            umidade_solo=300,
             inclinacao=0,
-            aceleracao_x=0.4,
+            aceleracao_x=0.45,
+            aceleracao_y=0.01,
+            aceleracao_z=1.0,
+            giroscopio_x=0.0,
+            giroscopio_y=0.0,
+            giroscopio_z=0.0,
+        )
+        == NivelAlerta.AMARELO
+    )
+
+
+def test_calcula_laranja_com_umidade_em_alerta():
+    assert (
+        calcular_nivel_alerta(
+            umidade_solo=3400,
+            inclinacao=0,
+            aceleracao_x=0.01,
             aceleracao_y=0.01,
             aceleracao_z=1.0,
             giroscopio_x=0.0,
@@ -30,6 +46,22 @@ def test_calcula_laranja_com_solo_umido_e_vibracao():
             giroscopio_z=0.0,
         )
         == NivelAlerta.LARANJA
+    )
+
+
+def test_calcula_vermelho_com_movimento_em_alerta():
+    assert (
+        calcular_nivel_alerta(
+            umidade_solo=300,
+            inclinacao=0,
+            aceleracao_x=0.75,
+            aceleracao_y=0.01,
+            aceleracao_z=1.0,
+            giroscopio_x=0.0,
+            giroscopio_y=0.0,
+            giroscopio_z=0.0,
+        )
+        == NivelAlerta.VERMELHO
     )
 
 

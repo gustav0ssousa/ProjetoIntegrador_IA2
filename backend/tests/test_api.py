@@ -90,10 +90,18 @@ def test_post_leituras_cria_documento_com_sensores_aninhados():
         "aceleracao_z",
         "giroscopio_x",
         "giroscopio_y",
-        "giroscopio_z",
-        "umidade_solo",
-        "inclinacao",
-    }
+            "giroscopio_z",
+            "umidade_solo",
+            "inclinacao",
+            "hw103a_ao",
+            "hw103a_do",
+            "hw103a_do_wet",
+            "sw520_raw",
+            "sw520_hits",
+            "sw520_edges",
+            "sw520_streak",
+            "mpu_motion_g",
+        }
 
 
 def test_post_api_sensors_normaliza_payload_humidity():

@@ -47,6 +47,7 @@ type ChartRow = {
   umidade: number;
   vibracao: number;
   inclinacao: number;
+  movimento: number;
   risco: number;
 };
 
@@ -77,6 +78,11 @@ const alertRank: Record<NivelAlerta, number> = {
   laranja: 3,
   vermelho: 4,
 };
+
+const HUMIDITY_PULSE_MIN = 2400;
+const HUMIDITY_CONTINUOUS = 3400;
+const ACCEL_ATTENTION_G = 0.4;
+const ACCEL_ALERT_G = 0.7;
 
 const navItems: { id: View; label: string; icon: ReactNode }[] = [
   { id: "overview", label: "Dashboard", icon: <LayoutDashboard size={16} /> },
@@ -114,6 +120,9 @@ function toPercent(value: number) {
 function vibrationIndex(reading?: Leitura) {
   if (!reading) return 0;
   const { sensores } = reading;
+  if (sensores.sw520_edges != null || sensores.sw520_streak != null) {
+    return Number(((sensores.sw520_edges ?? 0) * 8 + (sensores.sw520_streak ?? 0) * 12 + sensores.inclinacao * 25).toFixed(1));
+  }
   const accel = Math.sqrt(
     sensores.aceleracao_x ** 2 + sensores.aceleracao_y ** 2 + (sensores.aceleracao_z - 1) ** 2,
   );
@@ -123,6 +132,23 @@ function vibrationIndex(reading?: Leitura) {
     Math.abs(sensores.giroscopio_z),
   );
   return Number((accel * 42 + gyro * 0.35).toFixed(1));
+}
+
+function mpuMotionG(reading?: Leitura) {
+  if (!reading) return 0;
+  const { sensores } = reading;
+  if (sensores.mpu_motion_g != null) return Number(sensores.mpu_motion_g.toFixed(3));
+  return Number(
+    Math.sqrt(
+      sensores.aceleracao_x ** 2 + sensores.aceleracao_y ** 2 + (sensores.aceleracao_z - 1) ** 2,
+    ).toFixed(3),
+  );
+}
+
+function mpuLevel(value: number) {
+  if (value > ACCEL_ALERT_G) return "ALERTA";
+  if (value > ACCEL_ATTENTION_G) return "ATENCAO";
+  return "NORMAL";
 }
 
 function slopeDegrees(reading?: Leitura) {
@@ -135,9 +161,10 @@ function slopeDegrees(reading?: Leitura) {
 function riskScore(reading?: Leitura) {
   if (!reading) return 0;
   const base = alertRank[reading.nivel_alerta] * 18;
-  const moisture = toPercent(reading.sensores.umidade_solo) > 68 ? 18 : 0;
+  const moisture = reading.sensores.umidade_solo >= HUMIDITY_CONTINUOUS ? 20 : reading.sensores.umidade_solo >= HUMIDITY_PULSE_MIN ? 10 : 0;
+  const movement = mpuMotionG(reading) > ACCEL_ALERT_G ? 22 : mpuMotionG(reading) > ACCEL_ATTENTION_G ? 12 : 0;
   const slope = reading.sensores.inclinacao ? 18 : 0;
-  return clamp(base + moisture + slope);
+  return clamp(base + moisture + movement + slope);
 }
 
 function getHighestAlert(items: Leitura[]): NivelAlerta {
@@ -431,6 +458,7 @@ export function App() {
   const highestAlert = getHighestAlert(recent);
   const moisture = latest ? toPercent(latest.sensores.umidade_solo) : 0;
   const vibration = vibrationIndex(latest);
+  const motion = mpuMotionG(latest);
   const slope = slopeDegrees(latest);
   const events = readings.filter((item) => item.evento_deslizamento || item.nivel_alerta !== "verde");
   const simulations = new Set(readings.map((item) => item.id_simulacao)).size;
@@ -450,6 +478,7 @@ export function App() {
     umidade: toPercent(item.sensores.umidade_solo),
     vibracao: vibrationIndex(item),
     inclinacao: slopeDegrees(item),
+    movimento: mpuMotionG(item),
     risco: riskScore(item),
   }));
 
@@ -461,7 +490,16 @@ export function App() {
       chartRows.map((row) => row.umidade),
       chartRows.map((row) => ({ time: row.time, value: row.umidade })),
       "#4CAF50",
-      70,
+      toPercent(HUMIDITY_CONTINUOUS),
+    ),
+    makePrediction(
+      "movimento",
+      "Movimento MPU",
+      " g",
+      chartRows.map((row) => row.movimento),
+      chartRows.map((row) => ({ time: row.time, value: row.movimento })),
+      "#FFC107",
+      ACCEL_ALERT_G,
     ),
     makePrediction(
       "vibracao",
@@ -560,7 +598,7 @@ export function App() {
             <StatTile icon={<Activity size={22} />} label="Ultima leitura" value={latest ? `${formatTime(latest.timestamp)}` : "Sem dados"} detail={latest ? `${latest.id_simulacao} em ${formatDate(latest.timestamp)}` : "Nenhuma leitura recebida"} tone="#4CAF50" />
             <StatTile icon={<Shield size={22} />} label="Nivel de risco" value={alertLabels[highestAlert]} detail="maior nivel das leituras recentes" tone={highestAlert === "verde" ? "#4CAF50" : highestAlert === "amarelo" ? "#FFC107" : "#F44336"} />
             <StatTile icon={<Droplets size={22} />} label="Leitura do higrometro" value={`${moisture.toFixed(1)}%`} detail={`ADC ${latest?.sensores.umidade_solo ?? 0}`} tone="#66BB6A" />
-            <StatTile icon={<Sparkles size={22} />} label="Reconhecimento" value={`${events.length}`} detail="alertas totais analisados" tone="#A5D6A7" />
+            <StatTile icon={<Sparkles size={22} />} label="Movimento MPU" value={`${motion.toFixed(3)} g`} detail={mpuLevel(motion)} tone={motion > ACCEL_ALERT_G ? "#F44336" : motion > ACCEL_ATTENTION_G ? "#FFC107" : "#A5D6A7"} />
           </section>
 
           <section className="compact-sensor-grid">
@@ -573,14 +611,14 @@ export function App() {
             <article>
               <span><Gauge size={18} /></span>
               <small>Acelerometro</small>
-              <strong>{slope.toFixed(1)}g</strong>
-              <p>{latest ? formatTime(latest.timestamp) : "Sem dados"}</p>
+              <strong>{motion.toFixed(3)}g</strong>
+              <p>{mpuLevel(motion)}</p>
             </article>
             <article>
               <span><Waves size={18} /></span>
               <small>Vibracao</small>
               <strong>{vibration.toFixed(1)}</strong>
-              <p>{vibration > 25 ? "Subindo" : "Estavel"}</p>
+              <p>{latest?.sensores.inclinacao ? "Continua" : vibration > 0 ? "Variacao" : "Estavel"}</p>
             </article>
           </section>
 
@@ -676,6 +714,7 @@ export function App() {
                     <YAxis stroke="#8d9ab1" tickLine={false} axisLine={false} />
                     <Tooltip contentStyle={{ background: "#111720", border: "1px solid #334155", borderRadius: 8 }} />
                     <Line type="monotone" dataKey="umidade" stroke="#18d0a8" strokeWidth={3} dot={false} />
+                    <Line type="monotone" dataKey="movimento" stroke="#ffbd59" strokeWidth={3} dot={false} />
                     <Line type="monotone" dataKey="vibracao" stroke="#38a5ff" strokeWidth={3} dot={false} />
                     <Line type="monotone" dataKey="inclinacao" stroke="#b786ff" strokeWidth={3} dot={false} />
                   </LineChart>
@@ -722,6 +761,7 @@ export function App() {
                     <th>Horario</th>
                     <th>Simulacao</th>
                     <th>Umidade</th>
+                    <th>Movimento</th>
                     <th>Vibracao</th>
                     <th>Inclinacao</th>
                     <th>Nivel</th>
@@ -733,6 +773,7 @@ export function App() {
                       <td>{formatTime(item.timestamp)}</td>
                       <td>{item.id_simulacao}</td>
                       <td>{toPercent(item.sensores.umidade_solo).toFixed(1)}%</td>
+                      <td>{mpuMotionG(item).toFixed(3)} g</td>
                       <td>{vibrationIndex(item).toFixed(1)}</td>
                       <td>{slopeDegrees(item).toFixed(1)} graus</td>
                       <td>
@@ -814,8 +855,8 @@ export function App() {
                   <div>
                     <strong>{formatDate(item.timestamp)} as {formatTime(item.timestamp)}</strong>
                     <p>
-                      {item.id_simulacao}: umidade {toPercent(item.sensores.umidade_solo).toFixed(1)}%, vibracao{" "}
-                      {vibrationIndex(item).toFixed(1)}.
+                      {item.id_simulacao}: umidade {toPercent(item.sensores.umidade_solo).toFixed(1)}%, movimento{" "}
+                      {mpuMotionG(item).toFixed(3)} g, SW-520 {vibrationIndex(item).toFixed(1)}.
                     </p>
                   </div>
                   <span className={`alert-pill ${item.nivel_alerta}`}>{alertLabels[item.nivel_alerta]}</span>

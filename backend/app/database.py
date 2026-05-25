@@ -19,6 +19,14 @@ SENSOR_RESPONSE_FIELDS = {
     "giroscopio_z",
     "umidade_solo",
     "inclinacao",
+    "hw103a_ao",
+    "hw103a_do",
+    "hw103a_do_wet",
+    "sw520_raw",
+    "sw520_hits",
+    "sw520_edges",
+    "sw520_streak",
+    "mpu_motion_g",
 }
 
 

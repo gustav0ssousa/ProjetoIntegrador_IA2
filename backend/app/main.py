@@ -85,12 +85,15 @@ async def inserir_leitura(
     print(
         (
             "leitura_recebida "
-            "id_simulacao={} umidade_solo={} inclinacao={} "
+            "id_simulacao={} umidade_solo={} inclinacao={} mpu_motion_g={} sw520_edges={} sw520_streak={} "
             "nivel_alerta={} evento_deslizamento={}"
         ).format(
             document.get("id_simulacao"),
             sensores.get("umidade_solo"),
             sensores.get("inclinacao"),
+            sensores.get("mpu_motion_g"),
+            sensores.get("sw520_edges"),
+            sensores.get("sw520_streak"),
             document.get("nivel_alerta"),
             document.get("evento_deslizamento"),
         ),
@@ -284,6 +287,14 @@ async def exportar_leituras_csv(
         "giroscopio_z",
         "umidade_solo",
         "inclinacao",
+        "hw103a_ao",
+        "hw103a_do",
+        "hw103a_do_wet",
+        "sw520_raw",
+        "sw520_hits",
+        "sw520_edges",
+        "sw520_streak",
+        "mpu_motion_g",
         "nivel_alerta",
         "evento_deslizamento",
         "observacoes_experimento",
@@ -306,6 +317,14 @@ async def exportar_leituras_csv(
                 "giroscopio_z": sensores.get("giroscopio_z"),
                 "umidade_solo": sensores.get("umidade_solo"),
                 "inclinacao": sensores.get("inclinacao"),
+                "hw103a_ao": sensores.get("hw103a_ao"),
+                "hw103a_do": sensores.get("hw103a_do"),
+                "hw103a_do_wet": sensores.get("hw103a_do_wet"),
+                "sw520_raw": sensores.get("sw520_raw"),
+                "sw520_hits": sensores.get("sw520_hits"),
+                "sw520_edges": sensores.get("sw520_edges"),
+                "sw520_streak": sensores.get("sw520_streak"),
+                "mpu_motion_g": sensores.get("mpu_motion_g"),
                 "nivel_alerta": document.get("nivel_alerta"),
                 "evento_deslizamento": document.get("evento_deslizamento"),
                 "observacoes_experimento": document.get("observacoes_experimento"),

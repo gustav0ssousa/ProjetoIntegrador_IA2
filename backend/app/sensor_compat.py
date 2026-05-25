@@ -73,6 +73,14 @@ def normalizar_sensor_payload(payload: dict[str, Any]) -> LeituraCreate:
         "giroscopio_z": 0.0,
         "umidade_solo": 0,
         "inclinacao": 0,
+        "hw103a_ao": None,
+        "hw103a_do": None,
+        "hw103a_do_wet": None,
+        "sw520_raw": None,
+        "sw520_hits": None,
+        "sw520_edges": None,
+        "sw520_streak": None,
+        "mpu_motion_g": None,
         "evento_deslizamento": False,
         "observacoes_experimento": f"Payload compat sensores_pi: {sensor_type or 'unknown'}",
     }
@@ -81,12 +89,19 @@ def normalizar_sensor_payload(payload: dict[str, Any]) -> LeituraCreate:
         data["umidade_solo"] = _int_adc(
             metadata.get("moistureNormalized", metadata.get("umidade_norm", metadata.get("ao", value)))
         )
+        data["hw103a_ao"] = _int_adc(metadata.get("hw103a_ao", metadata.get("ao", data["umidade_solo"])))
+        data["hw103a_do"] = int(_boolish(metadata.get("d0", metadata.get("do", 0))))
+        data["hw103a_do_wet"] = _boolish(metadata.get("hw103a_do_wet", metadata.get("wet", False)))
         data["observacoes_experimento"] = "Payload compat sensores_pi: humidity"
     elif sensor_type == "vibration":
         detected = _boolish(metadata.get("vibrando")) or _boolish(payload.get("vibrando")) or _boolish(payload.get("detected"))
         digital = metadata.get("digitalRead", value)
         detected = detected or _boolish(digital)
         data["inclinacao"] = 1 if detected else 0
+        data["sw520_raw"] = int(_boolish(digital))
+        data["sw520_hits"] = int(_number(metadata.get("hits", metadata.get("sw520_hits", 0))))
+        data["sw520_edges"] = int(_number(metadata.get("edges", metadata.get("sw520_edges", 0))))
+        data["sw520_streak"] = int(_number(metadata.get("streak", metadata.get("sw520_streak", 0))))
         data["evento_deslizamento"] = detected
         data["observacoes_experimento"] = "Payload compat sensores_pi: vibration"
     elif sensor_type == "accelerometer":
@@ -101,6 +116,7 @@ def normalizar_sensor_payload(payload: dict[str, Any]) -> LeituraCreate:
         data["giroscopio_x"] = _number(metadata.get("giroscopioX", metadata.get("gyroX", 0)))
         data["giroscopio_y"] = _number(metadata.get("giroscopioY", metadata.get("gyroY", 0)))
         data["giroscopio_z"] = _number(metadata.get("giroscopioZ", metadata.get("gyroZ", 0)))
+        data["mpu_motion_g"] = _number(metadata.get("mpuMotionG", metadata.get("mpu_motion_g", 0)))
         data["observacoes_experimento"] = "Payload compat sensores_pi: accelerometer"
     else:
         raise HTTPException(
@@ -171,6 +187,8 @@ def leitura_document_to_sensor_readings(document: dict[str, Any]) -> list[dict[s
             "digitalRead": sensores.get("inclinacao", 0),
             "vibrando": bool(sensores.get("inclinacao", 0)),
             "detected": bool(sensores.get("inclinacao", 0)),
+            "edges": sensores.get("sw520_edges", 0),
+            "streak": sensores.get("sw520_streak", 0),
         },
         {
             **base,
@@ -187,6 +205,7 @@ def leitura_document_to_sensor_readings(document: dict[str, Any]) -> list[dict[s
                 "y": aceleracao_y,
                 "z": aceleracao_z,
                 "magnitude": round(magnitude, 2),
+                "motionG": sensores.get("mpu_motion_g"),
             },
             "giroscopio": {
                 "x": sensores.get("giroscopio_x", 0),
